@@ -1,31 +1,27 @@
 # models/user.py
 
-from pydantic import BaseModel, EmailStr
+from sqlmodel import SQLModel, Field, Column, Enum
 from typing import Optional
 from uuid import UUID, uuid4
-from enum import Enum
+from datetime import datetime
+from pydantic import EmailStr
+import enum
 
-class UserRole(str, Enum):
+class UserRole(str, enum.Enum):
     ADMIN = "Admin"
     MANAGER = "Manager"
     STAFF = "Staff"
 
-class UserBase(BaseModel):
+class User(SQLModel, table=True):
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
     first_name: str
     last_name: str
-    email: EmailStr
-    contact: Optional[str] = None
-    role: UserRole
+    email: EmailStr = Field(unique=True, index=True)
+    contact: Optional[str] = Field(default=None)
+    role: UserRole = Field(sa_column=Column(Enum(UserRole), nullable=False))
+    hashed_password: str  # Store hashed password
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
-class UserCreate(UserBase):
-    password: str  # Plain password for creation; hash it in the app logic
-
-class User(UserBase):
-    id: UUID = uuid4()
-    name: str  # Computed in app logic as first_name + last_name
-    is_active: bool = True
-    created_at: str  # Using str for simplicity; use datetime later
-    updated_at: str
-
-    class Config:
-        from_attributes = True
+    __tablename__ = "users"

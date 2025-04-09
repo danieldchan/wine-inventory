@@ -1,8 +1,12 @@
 # main.py
 
-from fastapi import FastAPI, HTTPException
-from uuid import UUID
-from models.wine_sku import WineSKU, WineSKUCreate
+from fastapi import FastAPI
+from routes.wine_sku import router as wine_sku_router
+from routes.user import router as user_router
+from routes.location import router as location_router
+from routes.movement import router as movement_router
+from routes.storage_lot import router as storage_lot_router
+from routes.stock import router as stock_router
 
 app = FastAPI(
     title="Wine Inventory API",
@@ -10,17 +14,10 @@ app = FastAPI(
     version="0.1.0"
 )
 
-wine_db: dict[UUID, WineSKU] = {}
-
-@app.post("/wines/", response_model=WineSKU)
-async def create_wine(wine: WineSKUCreate):
-    wine_sku = WineSKU(**wine.dict())
-    wine_db[wine_sku.id] = wine_sku
-    return wine_sku
-
-@app.get("/wines/{wine_id}", response_model=WineSKU)
-async def get_wine(wine_id: UUID):
-    wine = wine_db.get(wine_id)
-    if wine is None:
-        raise HTTPException(status_code=404, detail="Wine not found")
-    return wine
+# Mount the routers
+app.include_router(wine_sku_router)
+app.include_router(user_router)
+app.include_router(location_router)
+app.include_router(movement_router)
+app.include_router(storage_lot_router)
+app.include_router(stock_router)

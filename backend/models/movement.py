@@ -1,37 +1,32 @@
 # models/movement.py
 
-from pydantic import BaseModel
+from sqlmodel import SQLModel, Field, Column, Enum
 from typing import Optional
 from uuid import UUID, uuid4
-from enum import Enum
+from datetime import datetime
+import enum
 
-class MovementType(str, Enum):
+class MovementType(str, enum.Enum):
     INBOUND = "Inbound"
     OUTBOUND = "Outbound"
     TRANSFER = "Transfer"
     DEPLETION = "Depletion"
     ADJUSTMENT = "Adjustment"
 
-class MovementBase(BaseModel):
-    batch_ref: str
-    sku_id: UUID
-    quantity: int
-    from_location_id: Optional[UUID] = None
-    to_location_id: Optional[UUID] = None
-    from_lot_id: Optional[UUID] = None
-    to_lot_id: Optional[UUID] = None
-    movement_type: MovementType
-    reason: Optional[str] = None
-    performed_by: UUID
-    approved_by: Optional[UUID] = None
-    is_high_value: bool = False
+class Movement(SQLModel, table=True):
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    batch_ref: str = Field(index=True)  # Index for tracking
+    sku_id: UUID = Field(foreign_key="wineskus.id")
+    quantity: int = Field(gt=0)  # Ensure quantity > 0
+    from_location_id: Optional[UUID] = Field(default=None, foreign_key="locations.id")
+    to_location_id: Optional[UUID] = Field(default=None, foreign_key="locations.id")
+    from_lot_id: Optional[UUID] = Field(default=None, foreign_key="storagelots.id")
+    to_lot_id: Optional[UUID] = Field(default=None, foreign_key="storagelots.id")
+    movement_type: MovementType = Field(sa_column=Column(Enum(MovementType), nullable=False))
+    reason: Optional[str] = Field(default=None)
+    performed_by: UUID = Field(foreign_key="users.id")
+    approved_by: Optional[UUID] = Field(default=None, foreign_key="users.id")
+    is_high_value: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
-class MovementCreate(MovementBase):
-    pass
-
-class Movement(MovementBase):
-    id: UUID = uuid4()
-    created_at: str
-
-    class Config:
-        from_attributes = True
+    __tablename__ = "movements"

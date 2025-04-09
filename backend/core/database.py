@@ -1,26 +1,28 @@
 # core/database.py
 
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlmodel import create_engine, Session, SQLModel
 from dotenv import load_dotenv
 import os
 
+# Load environment variables
 load_dotenv()
 
+# Define DATABASE_URL with a fallback
 DATABASE_URL = os.getenv("DATABASE_URL")
+
+# Create the SQLAlchemy engine
 engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-Base = declarative_base()
+# Create a session factory
+SessionLocal = Session(engine)
 
-# Dependency
+# Dependency for FastAPI or other frameworks
 def get_db():
-    db = SessionLocal()
+    db = SessionLocal
     try:
         yield db
     finally:
         db.close()
 
-import os
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/mydb")
+# Optional: Create all tables (uncomment to run once or handle via Alembic)
+# SQLModel.metadata.create_all(engine)

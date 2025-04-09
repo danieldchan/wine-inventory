@@ -1,27 +1,22 @@
 # models/location.py
 
-from pydantic import BaseModel
+from sqlmodel import SQLModel, Field, Column, Enum
 from typing import Optional
 from uuid import UUID, uuid4
-from enum import Enum
+from datetime import datetime
+import enum
 
-class LocationType(str, Enum):
+class LocationType(str, enum.Enum):
     CELLAR = "Cellar"
     OUTLET = "Outlet"
     WAREHOUSE = "Warehouse"
 
-class LocationBase(BaseModel):
-    name: str
-    address: Optional[str] = None
-    type: LocationType
+class Location(SQLModel, table=True):
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    name: str = Field(index=True)  # Index for faster lookups
+    address: Optional[str] = Field(default=None)
+    type: LocationType = Field(sa_column=Column(Enum(LocationType), nullable=False))
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
-class LocationCreate(LocationBase):
-    pass
-
-class Location(LocationBase):
-    id: UUID = uuid4()
-    created_at: str
-    updated_at: str
-
-    class Config:
-        from_attributes = True
+    __tablename__ = "locations"
