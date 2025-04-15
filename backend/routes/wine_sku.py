@@ -11,8 +11,6 @@ router = APIRouter(prefix="/wines", tags=["WineSKU"])
 
 @router.post("/", response_model=WineSKU)
 def create_wine_endpoint(wine: WineSKUCreate, db: Session = Depends(get_db)):
-    db_wine = WineSKU(**wine.model_dump())
-    db.add(db_wine)
     return create_wine(db, wine)
 
 @router.get("/{wine_id}", response_model=WineSKU)
