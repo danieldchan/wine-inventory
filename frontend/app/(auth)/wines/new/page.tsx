@@ -15,6 +15,8 @@ import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { notFound } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
+import { winesApiService } from "@/lib/api/wines-api-service"
+import { WineSKUBase } from "@/lib/api/wines-api-types"
 
 // Form schema for wine creation
 const newWineFormSchema = z.object({
@@ -46,25 +48,34 @@ const newWineFormSchema = z.object({
     .min(2, { message: "Region must be at least 2 characters" })
     .max(100, { message: "Region must not exceed 100 characters" }),
   appellation: z.string().max(100, { message: "Appellation must not exceed 100 characters" }).optional(),
-  grape_varieties: z.array(z.string()).optional(),
-  alcohol_content: z.coerce.number().min(0).max(100).optional(),
+  grape_varieties: z.array(z.string()),
+  alcohol_content: z.coerce.number().min(0).max(100),
   bottling_date: z.string().optional(),
-  price_bottle: z.coerce.number().positive({ message: "Price per bottle must be positive" }),
-  price_glass: z.coerce.number().positive({ message: "Price per glass must be positive" }).optional(),
-  cost_price: z.coerce.number().positive({ message: "Cost price must be positive" }),
-  condition_notes: z.array(z.string()).optional(),
+  price_bottle: z.coerce.number().min(0, { message: "Price per bottle must be 0 or greater" }),
+  price_glass: z.coerce.number().min(0, { message: "Price per glass must be 0 or greater" }),
+  cost_price: z.coerce.number().min(0, { message: "Cost price must be 0 or greater" }),
+  condition_notes: z.array(z.string())
 })
 
 type NewWineFormValues = z.infer<typeof newWineFormSchema>
 
 export default function AddNewWinePage() {
-  const { user } = useAuth()
+  const { user, token } = useAuth()
   const router = useRouter()
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // Protect this page for admin and manager roles only
+  if (!user) {
+    return null // Don't render anything until user is loaded
+  }
+
+  if (user.role !== "admin" && user.role !== "manager") {
+    return notFound()
+  }
+
   // Set default form values
-  const defaultValues: Partial<NewWineFormValues> = {
+  const defaultValues: NewWineFormValues = {
     product_code: "",
     barcode: "",
     wine_name: "",
@@ -75,45 +86,76 @@ export default function AddNewWinePage() {
     region: "",
     appellation: "",
     grape_varieties: [],
-    alcohol_content: undefined,
+    alcohol_content: 0,
     bottling_date: "",
-    price_bottle: undefined,
-    price_glass: undefined,
-    cost_price: undefined,
+    price_bottle: 0,
+    price_glass: 0,
+    cost_price: 0,
     condition_notes: [],
   }
 
   const form = useForm<NewWineFormValues>({
     resolver: zodResolver(newWineFormSchema),
     defaultValues,
+    mode: "onChange"
   })
 
-  // Protect this page for admin and manager roles only
-  if (user?.role !== "admin" && user?.role !== "manager") {
-    return notFound()
-  }
+  // Add form error handler
+  const onError = (errors: any) => {
+    console.error('Form validation errors:', errors);
+    toast({
+      title: "Validation Error",
+      description: "Please check the form for errors.",
+      variant: "destructive",
+    });
+  };
 
   async function onSubmit(data: NewWineFormValues) {
+    console.log('Form submitted with data:', data);
     setIsSubmitting(true)
 
-    try {
-      // In a real application, this would be an API call
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+    if (!token) {
+      console.log('No token found');
+      toast({
+        title: "Authentication Error",
+        description: "You must be logged in to add a wine.",
+        variant: "destructive",
+      })
+      setIsSubmitting(false)
+      return
+    }
 
-      // Show success toast
+    try {
+      // Format the data to match backend expectations
+      const formattedData: WineSKUBase = {
+        ...data,
+        grape_varieties: data.grape_varieties || [],
+        condition_notes: data.condition_notes || [],
+        bottling_date: data.bottling_date ? new Date(data.bottling_date).toISOString() : undefined,
+        vintage_year: Number(data.vintage_year),
+        alcohol_content: data.alcohol_content ? Number(data.alcohol_content) : 0,
+        price_bottle: Number(data.price_bottle),
+        price_glass: data.price_glass ? Number(data.price_glass) : 0,
+        cost_price: Number(data.cost_price),
+      }
+      console.log('Formatted data:', formattedData);
+
+      // Use the wine service to create the wine
+      const newWine = await winesApiService.createWine(formattedData, token)
+      console.log('New wine created:', newWine);
+
       toast({
         title: "Wine successfully added",
-        description: `${data.wine_name} (${data.vintage_year}) has been added to your inventory.`,
+        description: `${newWine.wine_name} (${newWine.vintage_year}) has been added to your inventory.`,
       })
 
-      // Redirect to wines page
       router.push("/wines")
-    } catch (error) {
-      // Show error toast
+      router.refresh()
+    } catch (error: any) {
+      console.error('Error creating wine:', error);
       toast({
         title: "Failed to add wine",
-        description: "There was an error adding the wine. Please try again.",
+        description: error.message || "There was an error adding the wine. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -130,7 +172,7 @@ export default function AddNewWinePage() {
 
       <Card>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
+          <form onSubmit={form.handleSubmit(onSubmit, onError)}>
             <CardHeader>
               <CardTitle>Wine Information</CardTitle>
               <CardDescription>Enter the details of the new wine you want to add</CardDescription>
